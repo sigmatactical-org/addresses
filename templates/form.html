@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+
+{% block title %}{% if is_edit %}Edit address{% else %}New address{% endif %} — Sigma Addresses{% endblock %}
+
+
+{% block main_class %}addresses-main{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+  <h1>{% if is_edit %}Edit {{ category_label_lower }} address{% else %}Add {{ category_label_lower }} address{% endif %}</h1>
+  <p class="text-secondary">Used for orders on your account.</p>
+
+  {% if let Some(err) = error %}
+  <div class="alert alert-danger" role="alert">{{ err }}</div>
+  {% endif %}
+
+  <form method="post" action="{% if is_edit %}/{{ address_id }}{% else %}/{% endif %}" class="col-lg-8">
+    <div class="mb-3">
+      <label class="form-label">Category</label>
+      <div class="form-control-plaintext">{{ category_label }}</div>
+      {% if !is_edit %}
+      <input type="hidden" name="category" value="{{ category }}">
+      {% endif %}
+    </div>
+    <div class="row g-2">
+      <div class="col-md-6 mb-3">
+        <label for="label" class="form-label">Label</label>
+        <input type="text" class="form-control" id="label" name="label" value="{{ label }}" placeholder="e.g. Home, Office">
+      </div>
+      <div class="col-md-6 mb-3">
+        <label for="recipient_name" class="form-label">Recipient name</label>
+        <input type="text" class="form-control" id="recipient_name" name="recipient_name" value="{{ recipient_name }}">
+      </div>
+    </div>
+    <div class="mb-3">
+      <label for="line1" class="form-label">Address line 1</label>
+      <input type="text" class="form-control" id="line1" name="line1" value="{{ line1 }}" required>
+    </div>
+    <div class="mb-3">
+      <label for="line2" class="form-label">Address line 2</label>
+      <input type="text" class="form-control" id="line2" name="line2" value="{{ line2 }}">
+    </div>
+    <div class="row g-2">
+      <div class="col-md-5 mb-3">
+        <label for="city" class="form-label">City</label>
+        <input type="text" class="form-control" id="city" name="city" value="{{ city }}" required>
+      </div>
+      <div class="col-md-3 mb-3">
+        <label for="region" class="form-label">Region / State</label>
+        <input type="text" class="form-control" id="region" name="region" value="{{ region }}">
+      </div>
+      <div class="col-md-4 mb-3">
+        <label for="postal_code" class="form-label">Postal code</label>
+        <input type="text" class="form-control" id="postal_code" name="postal_code" value="{{ postal_code }}" required>
+      </div>
+    </div>
+    <div class="mb-3">
+      <label for="country" class="form-label">Country</label>
+      <input type="text" class="form-control" id="country" name="country" value="{{ country }}" required>
+    </div>
+    <div class="d-flex gap-2">
+      <button type="submit" class="btn btn-primary">Save</button>
+      <a class="btn btn-outline-secondary" href="/">Cancel</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

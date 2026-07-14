@@ -1,24 +1,10 @@
+mod store_error;
+pub use store_error::StoreError;
+
 use chrono::{DateTime, Utc};
 use sqlx::{PgPool, Row};
-use thiserror::Error;
 
 use crate::model::{Address, AddressCategory, CreateAddress, UpdateAddress};
-
-#[derive(Debug, Error)]
-pub enum StoreError {
-    #[error("address not found")]
-    NotFound,
-    #[error("{0}")]
-    InvalidInput(String),
-    #[error("database error: {0}")]
-    Database(#[from] anyhow::Error),
-}
-
-impl From<sqlx::Error> for StoreError {
-    fn from(err: sqlx::Error) -> Self {
-        Self::Database(err.into())
-    }
-}
 
 #[derive(Debug, Clone)]
 pub struct AddressStore {

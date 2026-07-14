@@ -9,6 +9,7 @@ use crate::model::{Address, AddressCategory, AddressForm};
 use crate::store::StoreError;
 use crate::templates::{self, AddressFormValues};
 
+/// Build this module's routes.
 pub fn routes(
     store: impl Filter<Extract = (SharedStore,), Error = Infallible> + Clone + Send + 'static,
 ) -> impl Filter<Extract = (impl Reply,), Error = Rejection> + Clone + Send + 'static {

@@ -1,3 +1,8 @@
+mod error_body;
+mod list_query;
+pub(crate) use error_body::ErrorBody;
+pub(crate) use list_query::ListQuery;
+
 use std::convert::Infallible;
 
 use warp::http::StatusCode;
@@ -7,11 +12,6 @@ use warp::{Filter, Rejection, Reply};
 use crate::SharedStore;
 use crate::model::AddressCategory;
 use crate::store::StoreError;
-
-#[derive(serde::Serialize)]
-struct ErrorBody {
-    error: String,
-}
 
 fn json_error(status: StatusCode, message: impl Into<String>) -> Response {
     warp::reply::with_status(
@@ -47,11 +47,6 @@ fn internal_auth() -> impl Filter<Extract = (), Error = Rejection> + Clone {
             },
         )
         .untuple_one()
-}
-
-#[derive(serde::Deserialize)]
-struct ListQuery {
-    category: Option<String>,
 }
 
 /// Internal-token-gated JSON API, mounted at `/api` by [`crate::routes`]. Used

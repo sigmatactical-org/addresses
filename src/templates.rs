@@ -1,7 +1,16 @@
+mod address_form_values;
+mod address_row;
+mod form_template;
+mod index_template;
+pub use address_form_values::AddressFormValues;
+pub use address_row::AddressRow;
+pub(crate) use form_template::FormTemplate;
+pub(crate) use index_template::IndexTemplate;
+
 use askama::Template;
 
 use crate::config;
-use crate::model::{Address, AddressCategory, AddressForm};
+use crate::model::{Address, AddressCategory};
 use sigma_theme::copyright_years;
 use sigma_theme::nav::SiteHeader;
 use sigma_theme::site_nav::{AppSiteNav, render_app_site_nav};
@@ -22,97 +31,6 @@ fn site_nav(return_path: &str) -> Result<String, askama::Error> {
         show_contact_us: false,
         leading_html: "",
     })
-}
-
-#[derive(Template)]
-#[template(path = "index.html")]
-struct IndexTemplate {
-    billing_rows: Vec<AddressRow>,
-    shipping_rows: Vec<AddressRow>,
-    message: Option<String>,
-    site_header: SiteHeader,
-    site_nav: String,
-    copyright_years: String,
-}
-
-#[derive(Template)]
-#[template(path = "form.html")]
-struct FormTemplate {
-    is_edit: bool,
-    address_id: String,
-    category: String,
-    category_label: String,
-    category_label_lower: String,
-    label: String,
-    recipient_name: String,
-    line1: String,
-    line2: String,
-    city: String,
-    region: String,
-    postal_code: String,
-    country: String,
-    error: Option<String>,
-    site_header: SiteHeader,
-    site_nav: String,
-    copyright_years: String,
-}
-
-/// A row in the billing/shipping address list.
-pub struct AddressRow {
-    pub label: String,
-    pub recipient_name: String,
-    pub line1: String,
-    pub line2: String,
-    pub city_line: String,
-    pub country: String,
-    pub is_default: bool,
-    pub edit_url: String,
-    pub delete_url: String,
-    pub default_url: String,
-}
-
-/// Preserved (possibly invalid) form input, re-rendered on a validation error
-/// so the visitor doesn't lose what they typed.
-#[derive(Default)]
-pub struct AddressFormValues {
-    pub label: String,
-    pub recipient_name: String,
-    pub line1: String,
-    pub line2: String,
-    pub city: String,
-    pub region: String,
-    pub postal_code: String,
-    pub country: String,
-}
-
-impl AddressFormValues {
-    #[must_use]
-    pub fn from_form(form: &AddressForm) -> Self {
-        Self {
-            label: form.label.clone(),
-            recipient_name: form.recipient_name.clone(),
-            line1: form.line1.clone(),
-            line2: form.line2.clone(),
-            city: form.city.clone(),
-            region: form.region.clone(),
-            postal_code: form.postal_code.clone(),
-            country: form.country.clone(),
-        }
-    }
-
-    #[must_use]
-    pub fn from_address(address: &Address) -> Self {
-        Self {
-            label: address.label.clone().unwrap_or_default(),
-            recipient_name: address.recipient_name.clone().unwrap_or_default(),
-            line1: address.line1.clone(),
-            line2: address.line2.clone().unwrap_or_default(),
-            city: address.city.clone(),
-            region: address.region.clone().unwrap_or_default(),
-            postal_code: address.postal_code.clone(),
-            country: address.country.clone(),
-        }
-    }
 }
 
 fn category_label(category: AddressCategory) -> &'static str {

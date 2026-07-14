@@ -1,5 +1,7 @@
 //! Sigma Addresses: billing/shipping addresses for identity users.
 
+#![forbid(unsafe_code)]
+
 mod api;
 pub mod config;
 mod model;

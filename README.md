@@ -1,5 +1,8 @@
 # sigma-addresses
 
+[![License](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue.svg)](#license)
+[![MSRV](https://img.shields.io/badge/MSRV-1.97.0-blue.svg)](https://www.rust-lang.org)
+
 Billing and shipping address service for Sigma Tactical Group identity users. Every address is owned by exactly one identity `user_id`; there is no admin view and no anonymous access — every route requires an active identity session. [sigma-payments](https://github.com/sigmatactical-org/payments) reads addresses over the internal JSON API to validate that a `billing_address_id` belongs to the payment method's owner before saving.
 
 Repository: https://github.com/sigmatactical-org/addresses

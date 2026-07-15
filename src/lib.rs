@@ -3,6 +3,7 @@
 #![forbid(unsafe_code)]
 
 mod api;
+pub mod cart_client;
 pub mod config;
 mod model;
 pub mod store;

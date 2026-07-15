@@ -19,13 +19,13 @@ fn page_header() -> SiteHeader {
     SiteHeader::new("Addresses").with_menu(site_menu(None))
 }
 
-fn site_nav(return_path: &str) -> Result<String, askama::Error> {
+fn site_nav(return_path: &str, cart_count: u32) -> Result<String, askama::Error> {
     render_app_site_nav(&AppSiteNav {
         identity_base: &config::identity_public_base_url(),
         app_base: &config::public_base_url(),
         contact_base: &config::contact_public_base_url(),
         cart_url: &config::cart_public_base_url(),
-        cart_count: 0,
+        cart_count,
         return_path,
         show_cart: true,
         show_contact_us: false,
@@ -70,6 +70,7 @@ fn address_row(address: &Address) -> AddressRow {
 pub fn render_index_html(
     addresses: Vec<Address>,
     message: Option<String>,
+    cart_count: u32,
 ) -> Result<String, askama::Error> {
     let mut billing_rows = Vec::new();
     let mut shipping_rows = Vec::new();
@@ -84,7 +85,7 @@ pub fn render_index_html(
         shipping_rows,
         message,
         site_header: page_header(),
-        site_nav: site_nav("/")?,
+        site_nav: site_nav("/", cart_count)?,
         copyright_years: copyright_years(),
     }
     .render()
@@ -95,6 +96,7 @@ fn render_form(
     category: AddressCategory,
     error: Option<String>,
     values: AddressFormValues,
+    cart_count: u32,
 ) -> Result<String, askama::Error> {
     let is_edit = address.is_some();
     let address_id = address.map(|a| a.id.clone()).unwrap_or_default();
@@ -118,7 +120,7 @@ fn render_form(
         country: values.country,
         error,
         site_header: page_header(),
-        site_nav: site_nav(&return_path)?,
+        site_nav: site_nav(&return_path, cart_count)?,
         copyright_years: copyright_years(),
     }
     .render()
@@ -131,12 +133,13 @@ pub fn render_form_html(
     address: Option<Address>,
     category: AddressCategory,
     error: Option<String>,
+    cart_count: u32,
 ) -> Result<String, askama::Error> {
     let values = address
         .as_ref()
         .map(AddressFormValues::from_address)
         .unwrap_or_default();
-    render_form(address.as_ref(), category, error, values)
+    render_form(address.as_ref(), category, error, values, cart_count)
 }
 
 /// # Errors
@@ -147,6 +150,7 @@ pub fn render_form_html_with_values(
     category: AddressCategory,
     error: Option<String>,
     values: AddressFormValues,
+    cart_count: u32,
 ) -> Result<String, askama::Error> {
-    render_form(address.as_ref(), category, error, values)
+    render_form(address.as_ref(), category, error, values, cart_count)
 }

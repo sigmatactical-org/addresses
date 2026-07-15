@@ -5,6 +5,7 @@ use warp::reply::Response;
 use warp::{Filter, Rejection, Reply};
 
 use crate::SharedStore;
+use crate::cart_client;
 use crate::model::{Address, AddressCategory, AddressForm};
 use crate::store::StoreError;
 use crate::templates::{self, AddressFormValues};
@@ -84,6 +85,7 @@ fn index(
         .and(cookie_filter())
         .and(store)
         .and_then(|cookie: Option<String>, store: SharedStore| async move {
+            let cart_count = cart_client::nav_cart_count(cookie.as_deref()).await;
             let user_id = match require_user(cookie, "/").await {
                 Ok(user_id) => user_id,
                 Err(resp) => return Ok::<_, Rejection>(resp),
@@ -92,7 +94,7 @@ fn index(
                 .list_for_user(&user_id)
                 .await
                 .map_err(|_| warp::reject::not_found())?;
-            templates::render_index_html(addresses, None)
+            templates::render_index_html(addresses, None, cart_count)
                 .map(|html| warp::reply::html(html).into_response())
                 .map_err(|_| warp::reject::not_found())
         })
@@ -114,6 +116,7 @@ fn new_address(
         .and(store)
         .and_then(
             |cookie: Option<String>, query: NewQuery, _store: SharedStore| async move {
+                let cart_count = cart_client::nav_cart_count(cookie.as_deref()).await;
                 let category = match query.category.as_deref().map(AddressCategory::parse) {
                     Some(Ok(category)) => category,
                     _ => return Err(warp::reject::not_found()),
@@ -123,7 +126,7 @@ fn new_address(
                     Ok(user_id) => user_id,
                     Err(resp) => return Ok::<_, Rejection>(resp),
                 };
-                templates::render_form_html(None, category, None)
+                templates::render_form_html(None, category, None, cart_count)
                     .map(|html| warp::reply::html(html).into_response())
                     .map_err(|_| warp::reject::not_found())
             },
@@ -140,6 +143,7 @@ fn create_address(
         .and(store)
         .and_then(
             |cookie: Option<String>, form: AddressForm, store: SharedStore| async move {
+                let cart_count = cart_client::nav_cart_count(cookie.as_deref()).await;
                 let user_id = match require_user(cookie, "/").await {
                     Ok(user_id) => user_id,
                     Err(resp) => return Ok::<_, Rejection>(resp),
@@ -152,11 +156,15 @@ fn create_address(
                 let response = match form.into_create(category) {
                     Ok(input) => match store.create(&user_id, input).await {
                         Ok(_) => redirect("/"),
-                        Err(e) => render_form_error(None, category, values, e),
+                        Err(e) => render_form_error(None, category, values, e, cart_count),
                     },
-                    Err(e) => {
-                        render_form_error(None, category, values, StoreError::InvalidInput(e))
-                    }
+                    Err(e) => render_form_error(
+                        None,
+                        category,
+                        values,
+                        StoreError::InvalidInput(e),
+                        cart_count,
+                    ),
                 };
                 Ok(response)
             },
@@ -175,16 +183,20 @@ fn edit_address(
         .and_then(
             |id: String, cookie: Option<String>, store: SharedStore| async move {
                 let return_path = format!("/{id}/edit");
+                let cart_count = cart_client::nav_cart_count(cookie.as_deref()).await;
                 let user_id = match require_user(cookie, &return_path).await {
                     Ok(user_id) => user_id,
                     Err(resp) => return Ok::<_, Rejection>(resp),
                 };
                 match store.get_for_user(&user_id, &id).await {
-                    Ok(address) => {
-                        templates::render_form_html(Some(address.clone()), address.category, None)
-                            .map(|html| warp::reply::html(html).into_response())
-                            .map_err(|_| warp::reject::not_found())
-                    }
+                    Ok(address) => templates::render_form_html(
+                        Some(address.clone()),
+                        address.category,
+                        None,
+                        cart_count,
+                    )
+                    .map(|html| warp::reply::html(html).into_response())
+                    .map_err(|_| warp::reject::not_found()),
                     Err(StoreError::NotFound) => Err(warp::reject::not_found()),
                     Err(_) => Err(warp::reject::not_found()),
                 }
@@ -204,6 +216,7 @@ fn update_address(
         .and_then(
             |id: String, cookie: Option<String>, form: AddressForm, store: SharedStore| async move {
                 let return_path = format!("/{id}/edit");
+                let cart_count = cart_client::nav_cart_count(cookie.as_deref()).await;
                 let user_id = match require_user(cookie, &return_path).await {
                     Ok(user_id) => user_id,
                     Err(resp) => return Ok::<_, Rejection>(resp),
@@ -218,13 +231,16 @@ fn update_address(
                 let response = match form.into_update() {
                     Ok(input) => match store.update(&user_id, &id, input).await {
                         Ok(_) => redirect("/"),
-                        Err(e) => render_form_error(Some(existing), category, values, e),
+                        Err(e) => {
+                            render_form_error(Some(existing), category, values, e, cart_count)
+                        }
                     },
                     Err(e) => render_form_error(
                         Some(existing),
                         category,
                         values,
                         StoreError::InvalidInput(e),
+                        cart_count,
                     ),
                 };
                 Ok(response)
@@ -289,9 +305,16 @@ fn render_form_error(
     category: AddressCategory,
     values: AddressFormValues,
     err: StoreError,
+    cart_count: u32,
 ) -> Response {
     let message = err.to_string();
-    match templates::render_form_html_with_values(address, category, Some(message), values) {
+    match templates::render_form_html_with_values(
+        address,
+        category,
+        Some(message),
+        values,
+        cart_count,
+    ) {
         Ok(html) => warp::reply::with_status(warp::reply::html(html), StatusCode::BAD_REQUEST)
             .into_response(),
         Err(_) => warp::reply::with_status(warp::reply(), StatusCode::INTERNAL_SERVER_ERROR)

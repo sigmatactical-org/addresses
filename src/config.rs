@@ -63,6 +63,22 @@ pub fn contact_public_base_url() -> String {
         .unwrap_or_else(|| "http://127.0.0.1:8083/".to_string())
 }
 
+/// Base URL of the cart service over the mesh, used server-side to read the
+/// live item count for the navbar badge (e.g. `http://127.0.0.1:8084/`).
+#[must_use]
+pub fn cart_base_url() -> Option<String> {
+    std::env::var("ADDRESSES_CART_BASE_URL")
+        .ok()
+        .filter(|s| !s.trim().is_empty())
+        .map(|s| normalize_base_url(&s))
+}
+
+/// Whether cart integration is configured.
+#[must_use]
+pub fn cart_configured() -> bool {
+    cart_base_url().is_some()
+}
+
 /// Public base URL of the cart service for the navbar link.
 #[must_use]
 pub fn cart_public_base_url() -> String {

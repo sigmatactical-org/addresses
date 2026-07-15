@@ -12,11 +12,11 @@ use askama::Template;
 use crate::config;
 use crate::model::{Address, AddressCategory};
 use sigma_theme::copyright_years;
-use sigma_theme::nav::SiteHeader;
+use sigma_theme::nav::{SiteHeader, site_menu};
 use sigma_theme::site_nav::{AppSiteNav, render_app_site_nav};
 
-fn page_header(brand: &str) -> SiteHeader {
-    SiteHeader::new(brand)
+fn page_header() -> SiteHeader {
+    SiteHeader::new().with_menu(site_menu(None))
 }
 
 fn site_nav(return_path: &str) -> Result<String, askama::Error> {
@@ -83,7 +83,7 @@ pub fn render_index_html(
         billing_rows,
         shipping_rows,
         message,
-        site_header: page_header("Sigma Addresses"),
+        site_header: page_header(),
         site_nav: site_nav("/")?,
         copyright_years: copyright_years(),
     }
@@ -117,7 +117,7 @@ fn render_form(
         postal_code: values.postal_code,
         country: values.country,
         error,
-        site_header: page_header("Sigma Addresses"),
+        site_header: page_header(),
         site_nav: site_nav(&return_path)?,
         copyright_years: copyright_years(),
     }

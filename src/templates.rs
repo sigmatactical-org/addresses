@@ -16,7 +16,7 @@ use sigma_theme::nav::{SiteHeader, site_menu};
 use sigma_theme::site_nav::{AppSiteNav, render_app_site_nav};
 
 fn page_header() -> SiteHeader {
-    SiteHeader::new().with_menu(site_menu(None))
+    SiteHeader::new("Addresses").with_menu(site_menu(None))
 }
 
 fn site_nav(return_path: &str) -> Result<String, askama::Error> {

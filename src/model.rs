@@ -9,27 +9,9 @@ pub use address_form::AddressForm;
 pub use create_address::CreateAddress;
 pub use update_address::UpdateAddress;
 
-fn empty_to_none(value: String) -> Option<String> {
-    let trimmed = value.trim();
-    if trimmed.is_empty() {
-        None
-    } else {
-        Some(trimmed.to_string())
-    }
-}
-
-fn required(value: String, field: &str) -> Result<String, String> {
-    let trimmed = value.trim();
-    if trimmed.is_empty() {
-        Err(format!("{field} is required"))
-    } else {
-        Ok(trimmed.to_string())
-    }
-}
-
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{AddressCategory, AddressForm};
 
     #[test]
     fn parse_category_accepts_known_values() {

@@ -1,7 +1,5 @@
 //! [`AddressFormValues`].
 
-#[allow(unused_imports)]
-use super::*;
 use crate::model::{Address, AddressForm};
 
 /// Preserved (possibly invalid) form input, re-rendered on a validation error

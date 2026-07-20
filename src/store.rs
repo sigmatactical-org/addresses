@@ -1,10 +1,11 @@
-mod store_error;
-pub use store_error::StoreError;
+pub use sigma_pg::api::StoreError;
 
-use chrono::{DateTime, Utc};
 use sqlx::{PgPool, Row};
 
 use crate::model::{Address, AddressCategory, CreateAddress, UpdateAddress};
+
+/// Entity name used in [`StoreError::NotFound`] messages.
+const ENTITY: &str = "address";
 
 #[derive(Debug, Clone)]
 pub struct AddressStore {
@@ -32,16 +33,25 @@ impl AddressStore {
         &self.pool
     }
 
-    /// List every address owned by `user_id`. Every read in this service is
-    /// scoped by the caller's verified session `user_id` — there is no
-    /// "list all addresses" endpoint.
-    pub async fn list_for_user(&self, user_id: &str) -> Result<Vec<Address>, StoreError> {
+    /// List `user_id`'s addresses, optionally restricted to one `category`
+    /// (filtered in SQL, not in Rust, so a category listing never reads the
+    /// user's other-category rows). Every read in this service is scoped by
+    /// the caller's verified session `user_id` — there is no "list all
+    /// addresses" endpoint.
+    pub async fn list_for_user(
+        &self,
+        user_id: &str,
+        category: Option<AddressCategory>,
+    ) -> Result<Vec<Address>, StoreError> {
         let rows = sqlx::query(
             "SELECT id, user_id, category, label, recipient_name, line1, line2, city, region, \
              postal_code, country, is_default, updated_at \
-             FROM addresses.addresses WHERE user_id = $1 ORDER BY category, updated_at DESC",
+             FROM addresses.addresses \
+             WHERE user_id = $1 AND ($2::text IS NULL OR category = $2) \
+             ORDER BY category, updated_at DESC",
         )
         .bind(user_id)
+        .bind(category.map(AddressCategory::as_str))
         .fetch_all(&self.pool)
         .await?;
         rows.into_iter().map(row_to_address).collect()
@@ -63,7 +73,7 @@ impl AddressStore {
         .await?;
         match row {
             Some(row) => row_to_address(row),
-            None => Err(StoreError::NotFound),
+            None => Err(StoreError::NotFound(ENTITY)),
         }
     }
 
@@ -109,7 +119,7 @@ impl AddressStore {
         .bind(&address.postal_code)
         .bind(&address.country)
         .bind(address.is_default)
-        .bind(parse_ts(&address.updated_at)?)
+        .bind(address.updated_at)
         .execute(&self.pool)
         .await?;
         Ok(address)
@@ -144,7 +154,7 @@ impl AddressStore {
         .bind(&address.region)
         .bind(&address.postal_code)
         .bind(&address.country)
-        .bind(parse_ts(&address.updated_at)?)
+        .bind(address.updated_at)
         .execute(&self.pool)
         .await?;
         Ok(address)
@@ -157,7 +167,7 @@ impl AddressStore {
             .execute(&self.pool)
             .await?;
         if result.rows_affected() == 0 {
-            return Err(StoreError::NotFound);
+            return Err(StoreError::NotFound(ENTITY));
         }
         Ok(())
     }
@@ -189,7 +199,7 @@ impl AddressStore {
         .await?;
         if result.rows_affected() == 0 {
             tx.rollback().await?;
-            return Err(StoreError::NotFound);
+            return Err(StoreError::NotFound(ENTITY));
         }
         tx.commit().await?;
         Ok(())
@@ -234,14 +244,8 @@ fn row_to_address(row: sqlx::postgres::PgRow) -> Result<Address, StoreError> {
         postal_code: row.get("postal_code"),
         country: row.get("country"),
         is_default: row.get("is_default"),
-        updated_at: row.get::<DateTime<Utc>, _>("updated_at").to_rfc3339(),
+        updated_at: row.get("updated_at"),
     })
-}
-
-fn parse_ts(value: &str) -> Result<DateTime<Utc>, StoreError> {
-    value
-        .parse::<DateTime<Utc>>()
-        .map_err(|e| StoreError::InvalidInput(format!("invalid timestamp: {e}")))
 }
 
 #[cfg(test)]
@@ -285,7 +289,7 @@ mod tests {
         assert_eq!(address.user_id, "user-1");
         assert!(!address.is_default);
 
-        let listed = store.list_for_user("user-1").await.unwrap();
+        let listed = store.list_for_user("user-1", None).await.unwrap();
         assert_eq!(listed.len(), 1);
         assert_eq!(listed[0].id, address.id);
 
@@ -311,7 +315,36 @@ mod tests {
 
         store.delete("user-1", &address.id).await.unwrap();
         let err = store.get_for_user("user-1", &address.id).await.unwrap_err();
-        assert!(matches!(err, StoreError::NotFound));
+        assert!(matches!(err, StoreError::NotFound(_)));
+    }
+
+    #[tokio::test]
+    async fn list_for_user_filters_by_category_in_sql() {
+        let store = test_store().await;
+        let billing = store
+            .create("user-1", billing_input("1 Billing Way"))
+            .await
+            .unwrap();
+        let shipping = store
+            .create("user-1", shipping_input("1 Shipping Way"))
+            .await
+            .unwrap();
+
+        let billing_only = store
+            .list_for_user("user-1", Some(AddressCategory::Billing))
+            .await
+            .unwrap();
+        assert_eq!(billing_only.len(), 1);
+        assert_eq!(billing_only[0].id, billing.id);
+
+        let shipping_only = store
+            .list_for_user("user-1", Some(AddressCategory::Shipping))
+            .await
+            .unwrap();
+        assert_eq!(shipping_only.len(), 1);
+        assert_eq!(shipping_only[0].id, shipping.id);
+
+        assert_eq!(store.list_for_user("user-1", None).await.unwrap().len(), 2);
     }
 
     #[tokio::test]
@@ -322,14 +355,14 @@ mod tests {
             .await
             .unwrap();
         let err = store.get_for_user("user-2", &address.id).await.unwrap_err();
-        assert!(matches!(err, StoreError::NotFound));
+        assert!(matches!(err, StoreError::NotFound(_)));
     }
 
     #[tokio::test]
     async fn delete_missing_address_returns_not_found() {
         let store = test_store().await;
         let err = store.delete("user-1", "does-not-exist").await.unwrap_err();
-        assert!(matches!(err, StoreError::NotFound));
+        assert!(matches!(err, StoreError::NotFound(_)));
     }
 
     #[tokio::test]
@@ -355,12 +388,12 @@ mod tests {
             .unwrap();
 
         store.set_default("user-1", &a.id).await.unwrap();
-        let listed = store.list_for_user("user-1").await.unwrap();
+        let listed = store.list_for_user("user-1", None).await.unwrap();
         assert!(listed.iter().find(|x| x.id == a.id).unwrap().is_default);
         assert!(!listed.iter().find(|x| x.id == b.id).unwrap().is_default);
 
         store.set_default("user-1", &b.id).await.unwrap();
-        let listed = store.list_for_user("user-1").await.unwrap();
+        let listed = store.list_for_user("user-1", None).await.unwrap();
         assert!(!listed.iter().find(|x| x.id == a.id).unwrap().is_default);
         assert!(listed.iter().find(|x| x.id == b.id).unwrap().is_default);
     }
@@ -383,7 +416,7 @@ mod tests {
         store.set_default("user-1", &billing.id).await.unwrap();
         store.set_default("user-1", &shipping.id).await.unwrap();
 
-        let listed = store.list_for_user("user-1").await.unwrap();
+        let listed = store.list_for_user("user-1", None).await.unwrap();
         assert!(
             listed
                 .iter()
@@ -407,7 +440,7 @@ mod tests {
             .set_default("user-1", "does-not-exist")
             .await
             .unwrap_err();
-        assert!(matches!(err, StoreError::NotFound));
+        assert!(matches!(err, StoreError::NotFound(_)));
     }
 
     #[tokio::test]

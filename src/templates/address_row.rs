@@ -1,8 +1,5 @@
 //! [`AddressRow`].
 
-#[allow(unused_imports)]
-use super::*;
-
 /// A row in the billing/shipping address list.
 pub struct AddressRow {
     pub label: String,

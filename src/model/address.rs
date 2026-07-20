@@ -1,8 +1,9 @@
 //! [`Address`].
 
-#[allow(unused_imports)]
-use super::*;
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
+
+use super::{AddressCategory, CreateAddress, UpdateAddress};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Address {
@@ -22,12 +23,11 @@ pub struct Address {
     pub postal_code: String,
     pub country: String,
     pub is_default: bool,
-    pub updated_at: String,
+    pub updated_at: DateTime<Utc>,
 }
 impl Address {
     #[must_use]
     pub fn new(user_id: &str, input: CreateAddress) -> Self {
-        let now = chrono::Utc::now().to_rfc3339();
         Self {
             id: uuid::Uuid::new_v4().to_string(),
             user_id: user_id.trim().to_string(),
@@ -41,7 +41,7 @@ impl Address {
             postal_code: input.postal_code,
             country: input.country,
             is_default: false,
-            updated_at: now,
+            updated_at: Utc::now(),
         }
     }
 
@@ -55,6 +55,6 @@ impl Address {
         self.region = input.region;
         self.postal_code = input.postal_code;
         self.country = input.country;
-        self.updated_at = chrono::Utc::now().to_rfc3339();
+        self.updated_at = Utc::now();
     }
 }

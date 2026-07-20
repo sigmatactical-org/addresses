@@ -1,57 +1,20 @@
-mod error_body;
+//! Internal-token-gated JSON API, mounted at `/api` by [`crate::routes`].
+//! Used by other services (e.g. payments, validating that a
+//! `billing_address_id` belongs to the expected user) rather than by browsers.
+
 mod list_query;
-pub(crate) use error_body::ErrorBody;
 pub(crate) use list_query::ListQuery;
 
 use std::convert::Infallible;
 
+use sigma_pg::api::{internal_auth, json_error, store_error_status};
 use warp::http::StatusCode;
-use warp::reply::Response;
 use warp::{Filter, Rejection, Reply};
 
 use crate::SharedStore;
 use crate::model::AddressCategory;
-use crate::store::StoreError;
 
-fn json_error(status: StatusCode, message: impl Into<String>) -> Response {
-    warp::reply::with_status(
-        warp::reply::json(&ErrorBody {
-            error: message.into(),
-        }),
-        status,
-    )
-    .into_response()
-}
-
-fn store_error_status(err: &StoreError) -> StatusCode {
-    match err {
-        StoreError::NotFound => StatusCode::NOT_FOUND,
-        StoreError::InvalidInput(_) => StatusCode::BAD_REQUEST,
-        StoreError::Database(_) => StatusCode::INTERNAL_SERVER_ERROR,
-    }
-}
-
-fn internal_auth() -> impl Filter<Extract = (), Error = Rejection> + Clone {
-    warp::header::optional::<String>("authorization")
-        .and(warp::header::optional::<String>("x-sigma-internal-token"))
-        .and_then(
-            |authorization: Option<String>, internal_token: Option<String>| async move {
-                if sigma_pg::clients::internal::authorize_internal(
-                    authorization.as_deref(),
-                    internal_token.as_deref(),
-                ) {
-                    Ok::<_, Rejection>(())
-                } else {
-                    Err(warp::reject::not_found())
-                }
-            },
-        )
-        .untuple_one()
-}
-
-/// Internal-token-gated JSON API, mounted at `/api` by [`crate::routes`]. Used
-/// by other services (e.g. payments, validating that a `billing_address_id`
-/// belongs to the expected user) rather than by browsers.
+/// Mounted under `/api` by [`crate::routes`].
 pub fn routes(
     store: impl Filter<Extract = (SharedStore,), Error = Infallible> + Clone + Send + 'static,
 ) -> impl Filter<Extract = (impl Reply,), Error = Rejection> + Clone + Send + 'static {
@@ -76,15 +39,10 @@ fn list_user_addresses(
                     }
                     None => None,
                 };
-                let addresses = match store.list_for_user(&user_id).await {
-                    Ok(addresses) => addresses,
-                    Err(e) => return Ok(json_error(store_error_status(&e), e.to_string())),
-                };
-                let filtered: Vec<_> = addresses
-                    .into_iter()
-                    .filter(|a| category.is_none_or(|c| a.category == c))
-                    .collect();
-                Ok(warp::reply::json(&filtered).into_response())
+                match store.list_for_user(&user_id, category).await {
+                    Ok(addresses) => Ok(warp::reply::json(&addresses).into_response()),
+                    Err(e) => Ok(json_error(store_error_status(&e), e.to_string())),
+                }
             },
         )
 }

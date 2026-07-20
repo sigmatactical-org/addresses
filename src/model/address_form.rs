@@ -1,8 +1,9 @@
 //! [`AddressForm`].
 
-#[allow(unused_imports)]
-use super::*;
 use serde::Deserialize;
+use sigma_pg::form::{empty_to_none, required};
+
+use super::{AddressCategory, CreateAddress, UpdateAddress};
 
 /// Raw `application/x-www-form-urlencoded` body for the create/edit web form.
 #[derive(Debug, Clone, Default, Deserialize)]

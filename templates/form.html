@@ -7,7 +7,7 @@
 
 {% block content %}
 <div class="container py-4">
-  <h1>{% if is_edit %}Edit {{ category_label_lower }} address{% else %}Add {{ category_label_lower }} address{% endif %}</h1>
+  <h1>{% if is_edit %}Edit {{ category }} address{% else %}Add {{ category }} address{% endif %}</h1>
   <p class="text-secondary">Used for orders on your account.</p>
 
   {% if let Some(err) = error %}

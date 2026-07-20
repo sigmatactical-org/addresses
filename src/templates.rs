@@ -109,7 +109,6 @@ fn render_form(
         address_id,
         category: category.as_str().to_string(),
         category_label: category_label(category).to_string(),
-        category_label_lower: category.as_str().to_string(),
         label: values.label,
         recipient_name: values.recipient_name,
         line1: values.line1,
@@ -130,27 +129,26 @@ fn render_form(
 ///
 /// Returns [`askama::Error`] when template rendering fails.
 pub fn render_form_html(
-    address: Option<Address>,
+    address: Option<&Address>,
     category: AddressCategory,
     error: Option<String>,
     cart_count: u32,
 ) -> Result<String, askama::Error> {
     let values = address
-        .as_ref()
         .map(AddressFormValues::from_address)
         .unwrap_or_default();
-    render_form(address.as_ref(), category, error, values, cart_count)
+    render_form(address, category, error, values, cart_count)
 }
 
 /// # Errors
 ///
 /// Returns [`askama::Error`] when template rendering fails.
 pub fn render_form_html_with_values(
-    address: Option<Address>,
+    address: Option<&Address>,
     category: AddressCategory,
     error: Option<String>,
     values: AddressFormValues,
     cart_count: u32,
 ) -> Result<String, askama::Error> {
-    render_form(address.as_ref(), category, error, values, cart_count)
+    render_form(address, category, error, values, cart_count)
 }

@@ -3,7 +3,6 @@
 #![forbid(unsafe_code)]
 
 mod api;
-pub mod cart_client;
 pub mod config;
 mod model;
 pub mod store;
@@ -11,26 +10,13 @@ mod templates;
 mod web;
 
 use std::convert::Infallible;
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 
 use warp::Filter;
 use warp::Reply;
 
-pub use model::{Address, AddressCategory, CreateAddress, UpdateAddress};
-
 /// Shared address store handle (`PgPool` is internally concurrent).
 pub type SharedStore = Arc<store::AddressStore>;
-
-/// Resolve listen address from **`PORT`** (default **8080**).
-#[must_use]
-pub fn listen_socket_addr_from_env() -> std::net::SocketAddr {
-    use std::net::{IpAddr, Ipv4Addr, SocketAddr};
-    let port: u16 = std::env::var("PORT")
-        .ok()
-        .and_then(|s| s.parse().ok())
-        .unwrap_or(8080);
-    SocketAddr::new(IpAddr::V4(Ipv4Addr::UNSPECIFIED), port)
-}
 
 fn with_store(
     store: SharedStore,
@@ -38,47 +24,39 @@ fn with_store(
     warp::any().map(move || store.clone())
 }
 
-fn content_security_policy() -> String {
-    let identity_origin = config::identity_public_origin();
-    format!(
-        "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; \
-         img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'; \
-         font-src 'self'; connect-src 'self' {identity_origin}; form-action 'self'"
-    )
+/// The identity origin appended to the CSP `connect-src`, resolved once.
+/// `security_headers` returns a `'static` filter, so its `connect_src_extra`
+/// must outlive the call; caching here avoids leaking a fresh `String` per
+/// `routes()` invocation.
+fn identity_origin() -> &'static str {
+    static ORIGIN: OnceLock<String> = OnceLock::new();
+    ORIGIN.get_or_init(config::identity_public_origin)
 }
 
 /// Site routes: session-gated web UI, internal-token JSON API (under `/api`),
-/// `/up`, theme static assets, error recovery.
+/// `/up`, health routes, theme static assets, and themed error recovery, with
+/// the shared security header set (CSP `connect-src` extended with the
+/// identity BFF origin).
 pub fn routes(
     store: store::AddressStore,
-) -> impl Filter<Extract = (impl Reply,), Error = Infallible> + Clone + Send + 'static {
-    use warp::reply::with::header;
-
+) -> impl Filter<Extract = (impl Reply,), Error = Infallible> + Clone + Send + Sync + 'static {
     let health_pool = Arc::new(store.pool().clone());
     let store = Arc::new(store);
 
-    warp::path("up")
-        .and(warp::get())
-        .map(|| warp::reply::with_status("up", warp::http::StatusCode::OK))
-        .or(sigma_pg::health::warp::health_routes(
-            "addresses",
-            Some(health_pool),
-        ))
-        .or(web::routes(with_store(store.clone())))
-        .or(warp::path("api").and(api::routes(with_store(store))))
-        .or(sigma_theme::warp::static_files())
-        .or(sigma_theme::warp::favicon())
-        .recover(sigma_theme::warp::handle_rejection)
-        .with(header("content-security-policy", content_security_policy()))
-        .with(header("x-content-type-options", "nosniff"))
-        .with(header("x-frame-options", "DENY"))
-        .with(header("referrer-policy", "strict-origin-when-cross-origin"))
+    let site = sigma_theme::warp::site_routes(
+        web::routes(with_store(store.clone())),
+        sigma_pg::health::warp::health_routes("addresses", Some(health_pool))
+            .or(warp::path("api").and(api::routes(with_store(store)))),
+    );
+    sigma_theme::warp::security_headers(site, identity_origin())
 }
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use warp::http::StatusCode;
+
+    use super::routes;
+    use crate::store;
 
     async fn test_store() -> store::AddressStore {
         sigma_pg::clients::internal::ensure_test_internal_token();

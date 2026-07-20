@@ -1,7 +1,5 @@
 //! [`FormTemplate`].
 
-#[allow(unused_imports)]
-use super::*;
 use askama::Template;
 use sigma_theme::nav::SiteHeader;
 
@@ -12,7 +10,6 @@ pub(crate) struct FormTemplate {
     pub(crate) address_id: String,
     pub(crate) category: String,
     pub(crate) category_label: String,
-    pub(crate) category_label_lower: String,
     pub(crate) label: String,
     pub(crate) recipient_name: String,
     pub(crate) line1: String,

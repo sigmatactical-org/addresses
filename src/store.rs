@@ -212,19 +212,16 @@ fn validate_fields(
     postal_code: &str,
     country: &str,
 ) -> Result<(), StoreError> {
-    if line1.trim().is_empty() {
-        return Err(StoreError::InvalidInput("line1 is required".to_string()));
-    }
-    if city.trim().is_empty() {
-        return Err(StoreError::InvalidInput("city is required".to_string()));
-    }
-    if postal_code.trim().is_empty() {
-        return Err(StoreError::InvalidInput(
-            "postal_code is required".to_string(),
-        ));
-    }
-    if country.trim().is_empty() {
-        return Err(StoreError::InvalidInput("country is required".to_string()));
+    let required = [
+        ("line1", line1),
+        ("city", city),
+        ("postal_code", postal_code),
+        ("country", country),
+    ];
+    for (name, value) in required {
+        if value.trim().is_empty() {
+            return Err(StoreError::InvalidInput(format!("{name} is required")));
+        }
     }
     Ok(())
 }

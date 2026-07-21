@@ -93,6 +93,13 @@ impl AddressStore {
         row.map(row_to_address).transpose()
     }
 
+    /// Insert a new address for `user_id`. When it is the user's first address
+    /// in its category it is made the default for that category, so a user
+    /// always has a default without a separate `set_default` step. `NOT EXISTS`
+    /// is evaluated inside the INSERT so the check and the write are one atomic
+    /// statement; the `(user_id, category)` partial unique index still backstops
+    /// any concurrent double-insert. The persisted flag is read back via
+    /// `RETURNING` so the returned struct matches the row.
     pub async fn create(&self, user_id: &str, input: CreateAddress) -> Result<Address, StoreError> {
         validate_fields(
             &input.line1,
@@ -100,12 +107,15 @@ impl AddressStore {
             &input.postal_code,
             &input.country,
         )?;
-        let address = Address::new(user_id, input);
-        sqlx::query(
+        let mut address = Address::new(user_id, input);
+        let row = sqlx::query(
             "INSERT INTO addresses.addresses \
              (id, user_id, category, label, recipient_name, line1, line2, city, region, \
               postal_code, country, is_default, updated_at) \
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)",
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, \
+              NOT EXISTS (SELECT 1 FROM addresses.addresses WHERE user_id = $2 AND category = $3), \
+              $12) \
+             RETURNING is_default",
         )
         .bind(&address.id)
         .bind(&address.user_id)
@@ -118,10 +128,10 @@ impl AddressStore {
         .bind(&address.region)
         .bind(&address.postal_code)
         .bind(&address.country)
-        .bind(address.is_default)
         .bind(address.updated_at)
-        .execute(&self.pool)
+        .fetch_one(&self.pool)
         .await?;
+        address.is_default = row.get("is_default");
         Ok(address)
     }
 
@@ -284,7 +294,8 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(address.user_id, "user-1");
-        assert!(!address.is_default);
+        // First address in its category is promoted to default automatically.
+        assert!(address.is_default);
 
         let listed = store.list_for_user("user-1", None).await.unwrap();
         assert_eq!(listed.len(), 1);
@@ -370,6 +381,37 @@ mod tests {
             .await
             .unwrap_err();
         assert!(matches!(err, StoreError::InvalidInput(_)));
+    }
+
+    #[tokio::test]
+    async fn first_address_in_category_becomes_default() {
+        let store = test_store().await;
+        // First address in a category is the default; later ones are not.
+        let first = store
+            .create("user-1", shipping_input("100 Main St"))
+            .await
+            .unwrap();
+        assert!(first.is_default);
+        let second = store
+            .create("user-1", shipping_input("200 Main St"))
+            .await
+            .unwrap();
+        assert!(!second.is_default);
+
+        // The default is per (user, category): the first billing address is a
+        // default in its own right even though a shipping default exists.
+        let billing = store
+            .create("user-1", billing_input("1 Billing Way"))
+            .await
+            .unwrap();
+        assert!(billing.is_default);
+
+        // A different user's first address is likewise their own default.
+        let other_user = store
+            .create("user-2", shipping_input("100 Main St"))
+            .await
+            .unwrap();
+        assert!(other_user.is_default);
     }
 
     #[tokio::test]

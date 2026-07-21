@@ -3,10 +3,10 @@
 use super::AddressCategory;
 
 /// Fields accepted when creating an address. `is_default` is deliberately
-/// absent: new addresses are never created as the default directly. Promoting
-/// an address to default requires the clear-then-set transaction implemented
-/// by `AddressStore::set_default`, which the UI calls as a separate action
-/// after creation.
+/// absent: the caller never chooses it. `AddressStore::create` makes the
+/// user's first address in a category its default automatically; any later
+/// promotion goes through the clear-then-set transaction in
+/// `AddressStore::set_default`, which the UI calls as a separate action.
 #[derive(Debug, Clone)]
 pub struct CreateAddress {
     pub category: AddressCategory,

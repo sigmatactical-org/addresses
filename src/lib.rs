@@ -10,28 +10,13 @@ mod templates;
 mod web;
 
 use std::convert::Infallible;
-use std::sync::{Arc, OnceLock};
+use std::sync::Arc;
 
 use warp::Filter;
 use warp::Reply;
 
 /// Shared address store handle (`PgPool` is internally concurrent).
 pub type SharedStore = Arc<store::AddressStore>;
-
-fn with_store(
-    store: SharedStore,
-) -> impl Filter<Extract = (SharedStore,), Error = Infallible> + Clone {
-    warp::any().map(move || store.clone())
-}
-
-/// The identity origin appended to the CSP `connect-src`, resolved once.
-/// `security_headers` returns a `'static` filter, so its `connect_src_extra`
-/// must outlive the call; caching here avoids leaking a fresh `String` per
-/// `routes()` invocation.
-fn identity_origin() -> &'static str {
-    static ORIGIN: OnceLock<String> = OnceLock::new();
-    ORIGIN.get_or_init(config::identity_public_origin)
-}
 
 /// Site routes: session-gated web UI, internal-token JSON API (under `/api`),
 /// `/up`, health routes, theme static assets, and themed error recovery, with
@@ -44,11 +29,11 @@ pub fn routes(
     let store = Arc::new(store);
 
     let site = sigma_theme::warp::site_routes(
-        web::routes(with_store(store.clone())),
+        web::routes(sigma_theme::warp::with_state(store.clone())),
         sigma_pg::health::warp::health_routes("addresses", Some(health_pool))
-            .or(warp::path("api").and(api::routes(with_store(store)))),
+            .or(warp::path("api").and(api::routes(sigma_theme::warp::with_state(store)))),
     );
-    sigma_theme::warp::security_headers(site, identity_origin())
+    sigma_theme::warp::security_headers(site, config::identity_public_origin())
 }
 
 #[cfg(test)]

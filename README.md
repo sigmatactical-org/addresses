@@ -10,11 +10,6 @@ Repository: https://github.com/sigmatactical-org/addresses
 
 Shared site chrome comes from [sigma-theme](https://github.com/sigmatactical-org/sigma-theme).
 
-## Public vs internal
-
-- **Session-gated web UI** (`addresses.sigma-tactical.com`): every route under `/` requires an identity session cookie. Visitors without one are redirected to identity sign-in and returned here afterward. All reads and writes are scoped to the signed-in user's own `user_id` — there is no cross-user or admin view.
-- **Internal only**: the JSON API under `/api`, gated by the shared `SIGMA_INTERNAL_TOKEN`. Used by other services (payments) rather than browsers.
-
 ## Features
 
 - **Billing and shipping addresses** — CRUD, grouped by category, one address list per identity user
@@ -47,7 +42,12 @@ Each address has:
 
 Data lives in the shared PostgreSQL `addresses` schema (`addresses.addresses`), owned by the `addresses` role. Schema and role are provisioned by [sigma-pg](https://github.com/sigmatactical-org/sigma-pg)'s migrations, not by this service.
 
-## Admin + JSON API
+## API
+
+### Public vs internal
+
+- **Session-gated web UI** (`addresses.sigma-tactical.com`): every route under `/` requires an identity session cookie. Visitors without one are redirected to identity sign-in and returned here afterward. All reads and writes are scoped to the signed-in user's own `user_id` — there is no cross-user or admin view.
+- **Internal only**: the JSON API under `/api`, gated by the shared `SIGMA_INTERNAL_TOKEN`. Used by other services (payments) rather than browsers.
 
 There is no admin web UI — the web UI at `/` *is* the end-user UI, scoped to whoever is signed in.
 

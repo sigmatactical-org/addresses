@@ -14,18 +14,18 @@ pub struct AddressStore {
 
 impl AddressStore {
     pub async fn connect() -> Result<Self, StoreError> {
-        let pool = sigma_pg::connect_as("addresses").await?;
-        Ok(Self { pool })
+        Ok(Self {
+            pool: sigma_pg::PgStore::connect("addresses").await?.into_inner(),
+        })
     }
 
     #[cfg(test)]
     pub async fn connect_empty() -> Result<Self, StoreError> {
-        let store = Self::connect().await?;
-        sigma_pg::assert_disposable_test_db(&store.pool).await;
-        sqlx::query("TRUNCATE addresses.addresses")
-            .execute(&store.pool)
-            .await?;
-        Ok(store)
+        Ok(Self {
+            pool: sigma_pg::PgStore::connect_empty("addresses", "TRUNCATE addresses.addresses")
+                .await?
+                .into_inner(),
+        })
     }
 
     #[must_use]

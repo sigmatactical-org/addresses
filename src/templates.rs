@@ -51,6 +51,7 @@ fn address_row(address: &Address) -> AddressRow {
     .collect::<Vec<_>>()
     .join(", ");
     AddressRow {
+        user_id: address.user_id.clone(),
         label: address.label.clone().unwrap_or_default(),
         recipient_name: address.recipient_name.clone().unwrap_or_default(),
         line1: address.line1.clone(),
@@ -71,6 +72,7 @@ pub fn render_index_html(
     addresses: Vec<Address>,
     message: Option<String>,
     cart_count: u32,
+    is_admin: bool,
 ) -> Result<String, askama::Error> {
     let mut billing_rows = Vec::new();
     let mut shipping_rows = Vec::new();
@@ -84,6 +86,7 @@ pub fn render_index_html(
         billing_rows,
         shipping_rows,
         message,
+        is_admin,
         site_header: page_header(),
         site_nav: site_nav("/", cart_count)?,
         copyright_years: copyright_years(),

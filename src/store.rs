@@ -33,11 +33,28 @@ impl AddressStore {
         &self.pool
     }
 
+    /// List every address, optionally restricted to one `category`. Used by
+    /// the admin HTML index; customer pages use [`Self::list_for_user`].
+    pub async fn list(
+        &self,
+        category: Option<AddressCategory>,
+    ) -> Result<Vec<Address>, StoreError> {
+        let rows = sqlx::query(
+            "SELECT id, user_id, category, label, recipient_name, line1, line2, city, region, \
+             postal_code, country, is_default, updated_at \
+             FROM addresses.addresses \
+             WHERE ($1::text IS NULL OR category = $1) \
+             ORDER BY user_id, category, updated_at DESC",
+        )
+        .bind(category.map(AddressCategory::as_str))
+        .fetch_all(&self.pool)
+        .await?;
+        rows.into_iter().map(row_to_address).collect()
+    }
+
     /// List `user_id`'s addresses, optionally restricted to one `category`
     /// (filtered in SQL, not in Rust, so a category listing never reads the
-    /// user's other-category rows). Every read in this service is scoped by
-    /// the caller's verified session `user_id` — there is no "list all
-    /// addresses" endpoint.
+    /// user's other-category rows).
     pub async fn list_for_user(
         &self,
         user_id: &str,

@@ -2,6 +2,7 @@
 
 /// A row in the billing/shipping address list.
 pub struct AddressRow {
+    pub user_id: String,
     pub label: String,
     pub recipient_name: String,
     pub line1: String,
